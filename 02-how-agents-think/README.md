@@ -1,193 +1,195 @@
-# Lesson 2: how agents think - LLMs as the reasoning engine
+# Урок 2: Как думают агенты — языковые модели как механизм рассуждений
 
-## Introduction
+## Введение
 
-In Lesson 1, we said that an agent is made of three parts: a model (the brain), tools (the hands), and an orchestration layer (the control loop). In this lesson, we zoom in on the brain.
+В уроке 1 мы говорили, что агент состоит из трех частей: модели (мозг), инструментов (руки) и уровня оркестровки (контур управления). В этом уроке мы подробно рассмотрим мозг.
 
-The language model is the most important component of an agent. It is the part that reads the user's goal, reasons about what to do, decides which tools to call, interprets results, and generates final answers. Everything else in the agent system exists to support or extend what the model can do.
+Языковая модель — наиболее важный компонент агента. Именно она считывает цель пользователя, рассуждает о том, что нужно делать, решает, какие инструменты использовать, интерпретирует результаты и генерирует окончательные ответы. Все остальное в системе агента существует для поддержки или расширения возможностей модели.
 
-Understanding how LLMs work - even at a high level - will make you a significantly better agent builder. You will know why some prompts work and others do not. You will understand why agents sometimes go off the rails. And you will be able to make informed decisions about model selection, prompt design, and system architecture.
-
----
-
-## LLMs as the brain of the agent
-
-A large language model is a neural network trained on vast amounts of text data. At its core, it does one thing: **predict the next token** (roughly, the next word or piece of a word) given everything that came before it.
-
-That sounds simple, but the emergent capabilities from this training are remarkable:
-
-- **Comprehension**: Understanding complex questions and instructions
-- **Reasoning**: Working through multi-step logic problems
-- **Planning**: Breaking a goal into subtasks
-- **Code generation**: Writing and debugging software
-- **Tool selection**: Deciding which function to call and with what parameters
-- **Summarization**: Distilling long documents into key points
-- **Translation**: Converting between languages, formats, and representations
-
-### What LLMs can do well
-
-| Capability | Example in Agent Context |
-|---|---|
-| Natural language understanding | Parsing a user's request: "Cancel my most recent order" |
-| Reasoning and planning | Deciding: "First I need to find the order, then check if it is cancelable, then cancel it" |
-| Tool selection | Choosing to call `lookup_order(user_id, sort="recent")` |
-| Output formatting | Returning a clean JSON response or friendly message |
-| Error interpretation | Reading an API error and deciding to retry with different parameters |
-| Context synthesis | Combining results from multiple tool calls into a coherent answer |
-
-### What LLMs cannot do (without help)
-
-| Limitation | Why It Matters |
-|---|---|
-| No real-time data access | The model's knowledge has a training cutoff date |
-| No computation guarantees | LLMs can get math wrong - they predict tokens, not calculate |
-| No persistent memory | Each conversation starts fresh unless you build memory in |
-| No ability to act | Without tools, the model can only generate text |
-| Hallucination risk | Models can generate plausible but incorrect information |
-| Context window limits | There is a maximum amount of text the model can process at once |
-
-This is why agents exist. Tools compensate for the model's inability to act and access live data. Orchestration compensates for its lack of persistent memory and its tendency to go off track.
+Понимание того, как работают языковые модели — даже на высоком уровне — значительно улучшит ваши навыки создания агентов. Вы будете знать, почему одни подсказки работают, а другие нет. Вы будете понимать, почему агенты иногда сбиваются с пути. И вы сможете принимать обоснованные решения о выборе модели, разработке подсказок и архитектуре системы.
 
 ---
 
-## How language models process information
+## Большие языковые модели как мозг агента
 
-You do not need to understand transformer architecture in detail to build agents, but understanding three key concepts will help you write better prompts and design better systems.
+Большая языковая модель — это нейронная сеть, обученная на огромных массивах текстовых данных. По своей сути, она делает одно: **предсказывает следующий токен** (примерно, следующее слово или часть слова), учитывая все, что было до него.
 
-### Tokens: the unit of language
+Звучит просто, но возникающие в результате этого обучения возможности поразительны:
 
-LLMs do not read characters or words. They read **tokens** - chunks of text that the model has learned to recognize during training. A token might be a whole word, part of a word, or a punctuation mark.
+- **Понимание**: Понимание сложных вопросов и инструкций
+- **Рассуждение**: Решение многошаговых логических задач
+- **Планирование**: Разбиение цели на подзадачи
+- **Генерация кода**: Написание и отладка программного обеспечения
+- **Выбор инструмента**: Определение того, какую функцию вызвать и с какими параметрами
+- **Резюмирование**: Сведение длинных документов к ключевым моментам
+- **Перевод**: Преобразование между языками, форматами и представлениями
 
-**Examples:**
+### Что большие языковые модели умеют делать хорошо
 
-| Text | Approximate Tokens |
+| Возможности | Пример в контексте агента |
 |---|---|
-| "Hello" | 1 token |
-| "Hello, world!" | 3 tokens |
-| "ChatGPT is amazing" | 4 tokens |
-| A typical code function (20 lines) | 100-300 tokens |
-| A full page of English text | ~500-700 tokens |
+| Понимание естественного языка | Анализ запроса пользователя: "Отменить мой последний заказ" |
+| Рассуждение и планирование | Принятие решения: "Сначала мне нужно найти заказ, затем проверить, можно ли его отменить, а затем отменить" |
+| Выбор инструмента | Выбор вызова `lookup_order(user_id, sort="recent")` |
+| Форматирование вывода | Возврат чистого JSON-ответа или дружественного сообщения |
+| Интерпретация ошибок | Чтение ошибки API и принятие решения о повторной попытке с другими параметрами |
+| Синтез контекста | Объединение результатов нескольких вызовов инструментов в связный ответ |
 
-**Why this matters for agents:**
+### Что не могут делать LLM (без посторонней помощи)
 
-- **Billing**: Most APIs charge per token (input + output). Agent workflows use many more tokens than single prompts because every iteration of the loop sends the full context.
-- **Speed**: More tokens = more time to generate. Keep your tool descriptions concise.
-- **Context limits**: There is a maximum number of tokens the model can process in a single call. If your agent's accumulated context exceeds this, you lose information.
-
-### Context windows: the model's working memory
-
-The **context window** is the total number of tokens a model can consider at once. Think of it like the model's desk - everything it needs to reference must fit on this desk.
-
-| Model | Context Window |
+| Ограничение | Почему это важно |
 |---|---|
-| Gemini 2.5 Pro | 1,000,000 tokens |
-| Gemini 2.0 Flash | 1,000,000 tokens |
-| GPT-4o | 128,000 tokens |
-| Claude 3.5 Sonnet | 200,000 tokens |
+| Нет доступа к данным в реальном времени | Знания модели имеют дату окончания обучения |
+| Нет гарантий вычислений | Модели LLM могут ошибаться в математике — они предсказывают токены, а не вычисляют |
+| Отсутствие постоянной памяти | Каждый разговор начинается заново, если вы не создадите память |
+| Отсутствие возможности действовать | Без инструментов модель может только генерировать текст |
+| Риск галлюцинаций | Модели могут генерировать правдоподобную, но неверную информацию |
+| Ограничения контекстного окна | Существует максимальное количество текста, которое модель может обрабатывать одновременно |
 
-**What goes into the context window during an agent call:**
-
-```
-+------------------------------------------+
-| System instructions ("You are a...")     |  ~200-500 tokens
-+------------------------------------------+
-| Tool definitions (names, descriptions,   |  ~500-2000 tokens
-| parameter schemas)                       |
-+------------------------------------------+
-| Conversation history                     |  Variable
-+------------------------------------------+
-| Previous tool calls and results          |  Variable (can grow fast)
-+------------------------------------------+
-| Current user message                     |  Variable
-+------------------------------------------+
-| = Total must fit within context window   |
-+------------------------------------------+
-```
-
-**Why this matters for agents:**
-
-As an agent executes multiple steps, the context grows with each tool call and result. A 5-step agent workflow might accumulate thousands of tokens of tool results. If you are not careful, you can exhaust the context window mid-task.
-
-Strategies to manage this:
-- **Summarize** intermediate results instead of keeping raw data
-- **Truncate** long tool outputs to the relevant parts
-- **Use models with large context windows** for complex multi-step tasks
-- **Implement a sliding window** that drops older, less relevant context
-
-### Attention: how the model focuses
-
-The **attention mechanism** is what allows the model to figure out which parts of the context are relevant to the current decision. When deciding what token to generate next, the model assigns different weights to different parts of the input.
-
-Think of it like reading a long document and highlighting the important parts. The model "highlights" the tokens most relevant to what it is trying to do right now.
-
-**Why this matters for agents:**
-
-- **Put important information where the model can find it.** Models tend to pay more attention to the beginning and end of the context. Critical instructions should go in the system prompt (beginning) or close to the user's query (end).
-- **Be specific and clear.** Vague instructions force the model to guess what matters. Specific instructions make it easy for the attention mechanism to latch onto the right information.
-- **Structure helps.** Clear headers, numbered lists, and consistent formatting help the model parse and attend to the right content.
+Именно поэтому существуют агенты. Инструменты компенсируют неспособность модели действовать и получать доступ к данным в реальном времени. Оркестрация компенсирует отсутствие у модели постоянной памяти и склонность к отклонениям от намеченного пути.
 
 ---
 
-## Reasoning strategies
+## Как языковые модели обрабатывают информацию
 
-How an agent "thinks" about a problem depends heavily on how you prompt the model. Different reasoning strategies produce very different results, especially for complex tasks.
+Вам не нужно досконально разбираться в архитектуре трансформеров, чтобы создавать агентов, но понимание трех ключевых концепций поможет вам писать более качественные подсказки и проектировать более эффективные системы.
 
-### Chain-of-Thought (CoT)
+### Токены: единица языка
 
-**What it is:** Prompting the model to think through a problem step by step before giving a final answer.
+Языковые модели не читают символы или слова. Они читают **токены** — фрагменты текста, которые модель научилась распознавать во время обучения. Токен может представлять собой целое слово, часть слова или знак препинания.
 
-**How it works:** Instead of jumping straight to an answer, the model generates intermediate reasoning steps. This dramatically improves accuracy on tasks that require logic, math, or multi-step analysis.
+**Примеры:**
 
-**Example without CoT:**
-```
-Prompt: "If a server handles 100 requests/second and we have 3 servers,
-         with 40% of traffic going to server 1, how many requests/second
-         does server 1 handle?"
+| Текст | Примерное количество токенов |
+|---|---|
+| "Привет" | 1 токен |
+| "Привет, мир!" | 3 токена |
+| "ChatGPT — потрясающий" | 4 токена |
+| Типичная функция кода (20 строк) | 100-300 токенов |
+| Целая страница английского текста | ~500-700 токенов |
 
-Model response: "120 requests per second"  (wrong)
-```
+**Почему это важно для агентов:**
 
-**Example with CoT:**
-```
-Prompt: "Think step by step. If a server handles 100 requests/second and
-         we have 3 servers, with 40% of traffic going to server 1, how
-         many requests/second does server 1 handle?"
+- **Оплата**: Большинство API взимают плату за токен (вход + выход). Рабочие процессы агентов используют гораздо больше токенов, чем одиночные запросы, потому что каждая итерация цикла отправляет полный контекст.
+- **Скорость**: Больше токенов = больше времени на генерацию. Делайте описания инструментов краткими.
+- **Ограничения контекста**: Существует максимальное количество токенов, которые модель может обработать за один вызов. Если накопленный контекст вашего агента превышает это значение, вы теряете информацию.
 
-Model response:
-"Step 1: Total capacity is 3 servers x 100 req/s = 300 req/s
- Step 2: Server 1 receives 40% of total traffic
- Step 3: 40% of 300 = 120 req/s
- Step 4: Server 1 can handle 100 req/s but receives 120 req/s
- Answer: Server 1 receives 120 req/s but can only handle 100 req/s,
-         so it is overloaded by 20 req/s"
-```
+### Окна контекста: рабочая память модели
 
-The step-by-step approach caught the overload condition that the direct answer missed.
+**Окно контекста** — это общее количество токенов, которые модель может обрабатывать одновременно. Представьте это как стол модели — все, на что ей нужно ссылаться, должно помещаться на этом столе.
 
-**When to use CoT for agents:**
-- Complex tool selection decisions ("Given these 5 tools, which one helps here?")
-- Multi-step planning ("What sequence of actions achieves this goal?")
-- Error diagnosis ("The tool returned an error - what went wrong and what should I try next?")
+| Модель | Окно контекста |
+|---|---|
+| Gemini 2.5 Pro | 1 000 000 токенов |
+| Gemini 2.0 Flash | 1 000 000 токенов |
+| GPT-4o | 128 000 токенов |
+| Claude 3.5 Sonnet | 200 000 токенов |
 
-### Tree-of-Thoughts (ToT)
-
-**What it is:** An extension of Chain-of-Thought where the model explores multiple reasoning paths, evaluates them, and picks the best one.
-
-**How it works:** Instead of one chain of reasoning, the model generates several possible approaches, scores or critiques each one, and proceeds with the most promising path.
+**Что отображается в контекстном окне во время звонка агента:**
 
 ```
-Goal: "Optimize this slow database query"
++------------------------------------------+
+| Системные инструкции ("Вы - это...")     |  ~200-500 токенов
++------------------------------------------+
+| Определения инструментов (имена,         |  ~500-2000 токенов
+| описания, схемы параметров)              |
++------------------------------------------+
+| История разговоров                       |  Переменная
++------------------------------------------+
+| Предыдущие вызовы инструментов и         |  Переменная (может быстро увеличиваться)  
+| результаты                               |
++------------------------------------------+
+| Сообщение текущего пользователя          |  Переменная
++------------------------------------------+
+| = Всего должно поместиться в контекстное |
+| окно                                     |
++------------------------------------------+
+```
 
-Path A: "Add an index on the WHERE clause column"
-  -> Evaluation: "Likely effective, low risk, easy to implement"
+**Почему это важно для агентов:**
 
-Path B: "Rewrite as a materialized view"
-  -> Evaluation: "Might help, but adds complexity and maintenance"
+По мере выполнения агентом множества шагов контекст расширяется с каждым вызовом инструмента и результатом. В пятишаговом рабочем процессе агента могут накапливаться тысячи токенов результатов работы инструментов. Если не быть осторожным, можно исчерпать контекстное окно в середине задачи.
 
-Path C: "Denormalize the table structure"
-  -> Evaluation: "Could work but high risk, affects other queries"
+Стратегии управления этим:
+- **Обобщать** промежуточные результаты вместо сохранения исходных данных
+- **Сокращать** длинные выходные данные инструментов до релевантных частей
+- **Использовать модели с большими контекстными окнами** для сложных многошаговых задач
+- **Реализовать скользящее окно**, которое отбрасывает более старый, менее релевантный контекст
 
-Decision: Proceed with Path A first, try Path B if A is insufficient
+### Внимание: как модель фокусируется
+
+**Механизм внимания** позволяет модели определять, какие части контекста релевантны текущему решению. При принятии решения о том, какой токен сгенерировать следующим, модель присваивает разные веса разным частям входных данных.
+
+Представьте это как чтение длинного документа и выделение важных частей. Модель «выделяет» токены, наиболее релевантные тому, что она пытается сделать в данный момент.
+
+**Почему это важно для агентов:**
+
+- **Размещайте важную информацию там, где модель может её найти.** Модели, как правило, уделяют больше внимания началу и концу контекста. Важные инструкции следует размещать в системном запросе (в начале) или рядом с запросом пользователя (в конце).
+- **Будьте конкретны и ясны.** Расплывчатые инструкции заставляют модель гадать, что важно. Конкретные инструкции облегчают механизму внимания захват нужной информации.
+- **Структура помогает.** Четкие заголовки, нумерованные списки и согласованное форматирование помогают модели анализировать и обрабатывать правильный контент.
+
+---
+
+## Стратегии рассуждения
+
+То, как агент «думает» о проблеме, во многом зависит от того, как вы задаете модели вопросы. Различные стратегии рассуждения дают совершенно разные результаты, особенно для сложных задач.
+
+### Метод «цепочки рассуждений» Chain-of-Thought (CoT)
+
+**Что это:** Побуждение модели к пошаговому анализу проблемы перед предоставлением окончательного ответа.
+
+**Как это работает:** Вместо того чтобы сразу переходить к ответу, модель генерирует промежуточные этапы рассуждений. Это значительно повышает точность в задачах, требующих логики, математики или многоэтапного анализа.
+
+**Пример без CoT:**
+```
+Prompt: «Если сервер обрабатывает 100 запросов в секунду, и у нас есть 3 сервера,
+        при этом 40% трафика приходится на сервер 1, сколько запросов в секунду
+        обрабатывает сервер 1?»
+
+Ответ модели: "120 запросов в секунду" (неверно)
+```
+
+**Пример с CoT:**
+```
+Prompt: "Подумайте шаг за шагом. Если сервер обрабатывает 100 запросов в секунду, и
+        у нас есть 3 сервера, при этом 40% трафика приходится на сервер 1, сколько
+        запросов в секунду обрабатывает сервер 1?"
+
+Ответ модели:
+""Шаг 1: Общая пропускная способность составляет 3 сервера x 100 запросов/с = 300 запросов/с
+  Шаг 2: Сервер 1 получает 40% от общего трафика
+  Шаг 3: 40% от 300 = 120 запросов/с
+  Шаг 4: Сервер 1 может обрабатывать 100 запросов/с, но получает 120 запросов/с
+Ответ: Сервер 1 получает 120 запросов/с, но может обрабатывать только 100 запросов/с,
+следовательно, он перегружен на 20 запросов/с"
+```
+
+Пошаговый подход выявил условие перегрузки, которое не было обнаружено в прямом ответе.
+
+**Когда использовать дерево мыслей (CoT) для агентов:**
+- Принятие сложных решений по выбору инструмента («Учитывая эти 5 инструментов, какой из них поможет в данном случае?»)
+- Многоэтапное планирование («Какая последовательность действий позволит достичь этой цели?»)
+- Диагностика ошибок («Инструмент вернул ошибку — что пошло не так и что мне следует попробовать дальше?»)
+
+### Дерево мыслей Tree-of-Thoughts (ToT)
+
+**Что это:** Расширение дерева мыслей, в котором модель исследует несколько путей рассуждений, оценивает их и выбирает лучший.
+
+**Как это работает:** Вместо одной цепочки рассуждений модель генерирует несколько возможных подходов, оценивает или критикует каждый из них и переходит к наиболее перспективному пути.
+
+```
+Цель: «Оптимизировать этот медленный запрос к базе данных»
+
+Путь A: «Добавить индекс по столбцу в предложении WHERE»
+  -> Оценка: «Вероятно, эффективно, низкий риск, легко реализовать»
+
+Путь B: «Переписать как материализованное представление»
+  -> Оценка: «Может помочь, но добавляет сложности и требует обслуживания»
+
+Путь C: «Денормализовать структуру таблицы»
+  -> Оценка: «Может сработать, но высокий риск, влияет на другие запросы»
+
+Решение: Сначала перейти к пути A, если A недостаточно эффективен, попробовать путь B
 ```
 
 **When to use ToT for agents:**
